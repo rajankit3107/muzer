@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -24,20 +18,23 @@ model User {
 model Stream {
   id          String     @id @default(uuid())
   type        StreamType
-  url         String
-  extractedId String
   active      Boolean    @default(true)
-  upvotes     Upvote[]
   userId      String
+  extractedId String
+  url         String
+  smallImg    String     @default("")
+  title       String     @default("")
+  bigImg      String     @default("")
   user        User       @relation(fields: [userId], references: [id])
+  upvotes     Upvote[]
 }
 
 model Upvote {
   id       String @id @default(uuid())
   userId   String
   streamId String
-  user     User   @relation(fields: [userId], references: [id])
   stream   Stream @relation(fields: [streamId], references: [id])
+  user     User   @relation(fields: [userId], references: [id])
 
   @@unique([userId, streamId])
 }

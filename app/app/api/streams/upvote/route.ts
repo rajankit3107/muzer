@@ -64,16 +64,21 @@ export async function POST(req: NextRequest) {
     await prisma.upvote.create({
       data: {
         userId: user.id,
-        streamId: validatedData.data?.streamId,
+        streamId: validatedData.data.streamId,
       },
     });
+
+    return NextResponse.json(
+      { message: "Upvoted successfully" },
+      { status: 200 }
+    );
   } catch (error) {
     return NextResponse.json(
       {
         message: `Error while upvoting`,
       },
       {
-        status: 403,
+        status: 500,
       }
     );
   }
