@@ -80,3 +80,22 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function GET(req: NextRequest) {
+  const creatorId = req.nextUrl.searchParams.get("creatorId");
+
+  if (!creatorId)
+    return NextResponse.json(
+      { message: `streamer does not exist` },
+      { status: 403 }
+    );
+  const streams = await prisma.stream.findMany({
+    where: {
+      userId: creatorId,
+    },
+  });
+
+  return NextResponse.json({
+    streams,
+  });
+}
