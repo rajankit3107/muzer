@@ -17,12 +17,14 @@ import {
   Play,
   Headphones,
 } from "lucide-react";
+import { Redirect } from "./components/redirect";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-background transition-colors duration-300">
       {/* Header */}
       <AppBar />
+      <Redirect />
       {/* Hero Section */}
       <section className="py-20 px-4 text-center bg-gradient-to-b from-background to-muted/30 transition-all duration-500">
         <div className="container mx-auto max-w-4xl">
