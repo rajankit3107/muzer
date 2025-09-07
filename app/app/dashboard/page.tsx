@@ -97,9 +97,27 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddStreamModalOpen, setIsAddStreamModalOpen] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("");
-  //session
-  const session = useSession();
-  const router = useRouter();
+  const [streams, setStreams] = useState(mockStreams);
+  const [trendingStreams, setTrendingStreams] = useState([
+    {
+      id: "4",
+      title: "Blinding Lights",
+      artist: "The Weeknd",
+      thumbnail: "/the-weeknd-blinding-lights.jpg",
+      upvotes: 234,
+      trend: "+15%",
+    },
+    {
+      id: "5",
+      title: "Shape of You",
+      artist: "Ed Sheeran",
+      thumbnail: "/ed-sheeran-shape-of-you.jpg",
+      upvotes: 189,
+      trend: "+8%",
+    },
+  ]);
+  const [votingInProgress, setVotingInProgress] = useState<string | null>(null);
+  const { data: session } = useSession();
 
   const getYouTubeVideoId = (url: string) => {
     const regExp =
@@ -108,13 +126,73 @@ export default function Dashboard() {
     return match && match[2].length === 11 ? match[2] : null;
   };
 
-  const currentStream = mockStreams.find(
+  const currentStream = streams.find(
     (stream) => stream.id === currentlyPlaying
   );
 
-  const handleVote = (streamId: string, voteType: "up" | "down") => {
-    // TODO: Implement voting logic with API calls
-    console.log(`Voted ${voteType} on stream ${streamId}`);
+  const handleVote = async (streamId: string, voteType: "up" | "down") => {
+    if (!session?.user) {
+      console.error("User not authenticated");
+      return;
+    }
+
+    setVotingInProgress(streamId);
+    try {
+      const endpoint =
+        voteType === "up" ? "/api/streams/upvote" : "/api/streams/downvote";
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ streamId }),
+      });
+
+      if (response.ok) {
+        // Update local state optimistically
+        setStreams((prevStreams: any[]) =>
+          prevStreams.map((stream: any) =>
+            stream.id === streamId
+              ? {
+                  ...stream,
+                  upvotes:
+                    voteType === "up"
+                      ? stream.upvotes + 1
+                      : Math.max(0, stream.upvotes - 1),
+                  downvotes:
+                    voteType === "down"
+                      ? stream.downvotes + 1
+                      : Math.max(0, stream.downvotes - 1),
+                }
+              : stream
+          )
+        );
+
+        // Update trending streams if it exists there
+        setTrendingStreams((prevTrending: any[]) =>
+          prevTrending.map((stream: any) =>
+            stream.id === streamId
+              ? {
+                  ...stream,
+                  upvotes:
+                    voteType === "up"
+                      ? stream.upvotes + 1
+                      : Math.max(0, stream.upvotes - 1),
+                }
+              : stream
+          )
+        );
+      } else {
+        const errorData = await response.json();
+        console.error("Voting failed:", errorData.message);
+      }
+    } catch (error) {
+      console.error("Error voting:", error);
+    } finally {
+      setVotingInProgress(null);
+    }
   };
 
   const togglePlay = (streamId: string) => {
@@ -276,6 +354,7 @@ export default function Dashboard() {
                       variant="outline"
                       className="flex items-center gap-2 bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white"
                       onClick={() => handleVote(currentStream.id, "up")}
+                      disabled={votingInProgress === currentStream.id}
                     >
                       <ChevronUp className="h-4 w-4" />
                       {currentStream.upvotes}
@@ -284,6 +363,7 @@ export default function Dashboard() {
                       variant="outline"
                       className="flex items-center gap-2 bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white"
                       onClick={() => handleVote(currentStream.id, "down")}
+                      disabled={votingInProgress === currentStream.id}
                     >
                       <ChevronDown className="h-4 w-4" />
                       {currentStream.downvotes}
@@ -326,12 +406,12 @@ export default function Dashboard() {
                 variant="secondary"
                 className="bg-gray-800 text-gray-300 border-gray-700"
               >
-                {mockStreams.length} tracks
+                {streams.length} tracks
               </Badge>
             </div>
 
             <div className="space-y-4">
-              {mockStreams.map((stream) => (
+              {streams.map((stream: any) => (
                 <Card
                   key={stream.id}
                   className="bg-gray-900 border-gray-800 hover:bg-gray-800 transition-colors"
@@ -384,6 +464,7 @@ export default function Dashboard() {
                           variant="outline"
                           className="flex items-center gap-1 bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white"
                           onClick={() => handleVote(stream.id, "up")}
+                          disabled={votingInProgress === stream.id}
                         >
                           <ChevronUp className="h-4 w-4" />
                           {stream.upvotes}
@@ -393,6 +474,7 @@ export default function Dashboard() {
                           variant="outline"
                           className="flex items-center gap-1 bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white"
                           onClick={() => handleVote(stream.id, "down")}
+                          disabled={votingInProgress === stream.id}
                         >
                           <ChevronDown className="h-4 w-4" />
                           {stream.downvotes}
@@ -412,7 +494,7 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {trendingStreams.map((stream) => (
+              {trendingStreams.map((stream: any) => (
                 <Card key={stream.id} className="bg-gray-900 border-gray-800">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">

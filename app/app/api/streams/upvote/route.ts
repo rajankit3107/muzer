@@ -10,7 +10,7 @@ const upvoteSchema = z.object({
 export async function POST(req: NextRequest) {
   const session = await auth();
 
-  if (!session?.user?.id) {
+  if (!session?.user?.email) {
     return NextResponse.json(
       {
         message: `unauthenticated`,
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findFirst({
     where: {
-      id: session.user.id,
+      email: session.user.email,
     },
   });
 

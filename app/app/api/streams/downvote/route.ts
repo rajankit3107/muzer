@@ -3,14 +3,14 @@ import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
-const upvoteSchema = z.object({
+const downvoteSchema = z.object({
   streamId: z.string(),
 });
 
 export async function POST(req: NextRequest) {
   const session = await auth();
 
-  if (!session?.user?.id) {
+  if (!session?.user?.email) {
     return NextResponse.json(
       {
         message: `unauthenticated`,
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findFirst({
     where: {
-      id: session.user.id,
+      email: session.user.email,
     },
   });
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     );
 
   try {
-    const validatedData = upvoteSchema.safeParse(await req.json());
+    const validatedData = downvoteSchema.safeParse(await req.json());
 
     if (!validatedData.success) {
       return NextResponse.json(
@@ -48,21 +48,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await prisma.upvote.delete({
+    // Check if user has upvoted this stream
+    const existingUpvote = await prisma.upvote.findUnique({
       where: {
         userId_streamId: {
           userId: user.id,
-          streamId: validatedData.data?.streamId,
+          streamId: validatedData.data.streamId,
         },
       },
     });
+
+    if (existingUpvote) {
+      // Remove the upvote (downvote removes upvote)
+      await prisma.upvote.delete({
+        where: {
+          userId_streamId: {
+            userId: user.id,
+            streamId: validatedData.data.streamId,
+          },
+        },
+      });
+    }
+
+    return NextResponse.json(
+      { message: "Downvoted successfully" },
+      { status: 200 }
+    );
   } catch (error) {
     return NextResponse.json(
       {
-        message: `Error while upvoting`,
+        message: `Error while downvoting`,
       },
       {
-        status: 403,
+        status: 500,
       }
     );
   }
