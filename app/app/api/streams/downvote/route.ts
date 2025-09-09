@@ -10,7 +10,7 @@ const downvoteSchema = z.object({
 export async function POST(req: NextRequest) {
   const session = await auth();
 
-  if (!session?.user?.email) {
+  if (!session?.user?.id) {
     return NextResponse.json(
       {
         message: `unauthenticated`,
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findFirst({
     where: {
-      email: session.user.email,
+      id: session.user.id,
     },
   });
 

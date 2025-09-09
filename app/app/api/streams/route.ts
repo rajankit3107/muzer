@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/db";
+import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 const youtubesearchapi = require("youtube-search-api");
@@ -13,8 +14,29 @@ const StreamSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Get authenticated user
+    const session = await auth();
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        {
+          message: "Unauthorized - Please sign in",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+    
+    console.log("Authenticated user ID:", session.user.id);
+    
     const body = await req.json();
-    const validatedData = StreamSchema.safeParse(body);
+    console.log("Request body:", body);
+    
+    // Validate URL only, we'll use the authenticated user's ID
+    const validatedData = z.object({
+      url: z.string(),
+    }).safeParse(body);
 
     if (!validatedData.success) {
       return NextResponse.json(
@@ -43,10 +65,40 @@ export async function POST(req: NextRequest) {
 
     // Extract YouTube video ID from URL
     let extractedId: string;
-    if (validatedData.data.url.includes("youtu.be/")) {
-      extractedId = validatedData.data.url.split("youtu.be/")[1];
-    } else {
-      extractedId = validatedData.data.url.split("?v=")[1];
+    console.log("Extracting ID from URL:", validatedData.data.url);
+    
+    try {
+      if (validatedData.data.url.includes("youtu.be/")) {
+        // Handle youtu.be format
+        extractedId = validatedData.data.url.split("youtu.be/")[1]?.split(/[?&#]/)[0];
+      } else if (validatedData.data.url.includes("youtube.com/watch")) {
+        // Handle youtube.com format
+        const urlObj = new URL(validatedData.data.url);
+        extractedId = urlObj.searchParams.get("v") || "";
+      } else if (validatedData.data.url.includes("youtube.com/embed/")) {
+        // Handle embed format
+        extractedId = validatedData.data.url.split("youtube.com/embed/")[1]?.split(/[?&#]/)[0];
+      } else {
+        // Fallback to regex
+        const match = validatedData.data.url.match(yt_regex);
+        extractedId = match ? match[1] : "";
+      }
+      
+      console.log("Extracted ID:", extractedId);
+      
+      if (!extractedId) {
+        throw new Error("Could not extract video ID");
+      }
+    } catch (error) {
+      console.error("Error extracting video ID:", error);
+      return NextResponse.json(
+        {
+          message: "Could not extract video ID from URL",
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
     const res = await youtubesearchapi.GetVideoDetails(extractedId);
@@ -59,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     // Create stream in database
     const streamData = {
-      userId: validatedData.data.creatorId,
+      userId: session.user.id, // Use authenticated user's ID
       url: validatedData.data.url,
       type: "Youtube" as const,
       extractedId: extractedId,
@@ -74,6 +126,8 @@ export async function POST(req: NextRequest) {
         thumbnails[thumbnails.length - 1].url ??
         "https://t4.ftcdn.net/jpg/01/77/43/63/360_F_177436300_PN50VtrZbrdxSAMKIgbbOIU90ZSCn8y3.jpg",
     };
+    
+    console.log("Stream data to be created:", streamData);
 
     const stream = await prisma.stream.create({
       data: streamData,

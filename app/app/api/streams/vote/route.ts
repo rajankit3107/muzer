@@ -3,8 +3,9 @@ import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
 import z from "zod";
 
-const upvoteSchema = z.object({
+const voteSchema = z.object({
   streamId: z.string(),
+  type: z.enum(["up", "down"]),
 });
 
 export async function POST(req: NextRequest) {
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     );
 
   try {
-    const validatedData = upvoteSchema.safeParse(await req.json());
+    const validatedData = voteSchema.safeParse(await req.json());
 
     if (!validatedData.success) {
       return NextResponse.json(
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
         }
       );
     }
+
     // Check if user already upvoted this stream
     const existingUpvote = await prisma.upvote.findUnique({
       where: {
@@ -57,25 +59,47 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (existingUpvote) {
-      return NextResponse.json({ message: "Already upvoted" }, { status: 400 });
+    if (validatedData.data.type === "up") {
+      // Handle upvote
+      if (existingUpvote) {
+        return NextResponse.json({ message: "Already upvoted" }, { status: 400 });
+      }
+
+      await prisma.upvote.create({
+        data: {
+          userId: user.id,
+          streamId: validatedData.data.streamId,
+        },
+      });
+
+      return NextResponse.json(
+        { message: "Upvoted successfully" },
+        { status: 200 }
+      );
+    } else {
+      // Handle downvote (remove upvote)
+      if (existingUpvote) {
+        // Remove the upvote (downvote removes upvote)
+        await prisma.upvote.delete({
+          where: {
+            userId_streamId: {
+              userId: user.id,
+              streamId: validatedData.data.streamId,
+            },
+          },
+        });
+      }
+
+      return NextResponse.json(
+        { message: "Downvoted successfully" },
+        { status: 200 }
+      );
     }
-
-    await prisma.upvote.create({
-      data: {
-        userId: user.id,
-        streamId: validatedData.data.streamId,
-      },
-    });
-
-    return NextResponse.json(
-      { message: "Upvoted successfully" },
-      { status: 200 }
-    );
   } catch (error) {
+    console.error("Error while voting:", error);
     return NextResponse.json(
       {
-        message: `Error while upvoting`,
+        message: `Error while processing vote`,
       },
       {
         status: 500,
