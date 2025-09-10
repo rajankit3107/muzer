@@ -41,7 +41,7 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    streams: streams.map((stream) => {
+    streams: streams.map((stream: (typeof streams)[number]) => {
       const { _count, ...rest } = stream;
       return {
         ...rest,
