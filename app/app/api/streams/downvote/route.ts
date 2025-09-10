@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
+    console.error("Error while downvoting:", error);
     return NextResponse.json(
       {
         message: `Error while downvoting`,

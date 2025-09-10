@@ -183,7 +183,7 @@ export default function MusicVotingApp() {
 
   // Vote for a song
   const handleVote = async (songId: string, voteType: "up" | "down") => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.email) return;
     try {
       // Send vote to backend
       await axios.post("/api/streams/vote", {
