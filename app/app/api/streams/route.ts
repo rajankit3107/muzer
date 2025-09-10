@@ -1,7 +1,7 @@
 import { prisma } from "@/app/lib/db";
 import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { email, z } from "zod";
 const youtubesearchapi = require("youtube-search-api");
 
 var yt_regex =
@@ -30,6 +30,22 @@ export async function POST(req: NextRequest) {
     
     console.log("Authenticated user ID:", session.user.id);
     
+    // verify user exists in database
+     if(!session.user.email)  return NextResponse.json({message : `unauthenticated`})
+    const existingUser = await prisma.user.findUnique({
+     
+      where: {
+        email : session.user.email,
+      },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json(
+        { message: "User not found in database" },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     console.log("Request body:", body);
     
@@ -111,7 +127,8 @@ export async function POST(req: NextRequest) {
 
     // Create stream in database
     const streamData = {
-      userId: session.user.id, // Use authenticated user's ID
+      userId: existingUser.id, // Use DB user id to satisfy FK
+      // email : existingUser.email,
       url: validatedData.data.url,
       type: "Youtube" as const,
       extractedId: extractedId,

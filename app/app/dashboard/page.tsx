@@ -20,34 +20,6 @@ interface Song {
   userVote?: "up" | "down" | null
 }
 
-// Mock data for demonstration
-const mockQueue: Song[] = [
-  {
-    id: "1",
-    title: "Bohemian Rhapsody - Queen",
-    thumbnail: "/bohemian-rhapsody-queen-album-cover.jpg",
-    videoId: "fJ9rUzIMcZQ",
-    votes: 15,
-    userVote: null,
-  },
-  {
-    id: "2",
-    title: "Stairway to Heaven - Led Zeppelin",
-    thumbnail: "/led-zeppelin-stairway-to-heaven-album-cover.jpg",
-    videoId: "QkF3oxziUI4",
-    votes: 12,
-    userVote: "up",
-  },
-  {
-    id: "3",
-    title: "Hotel California - Eagles",
-    thumbnail: "/eagles-hotel-california-album-cover.jpg",
-    videoId: "BciS5krYL80",
-    votes: 8,
-    userVote: null,
-  },
-]
-
 
 
 export default function MusicVotingApp() {

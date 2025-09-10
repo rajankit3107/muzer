@@ -27,7 +27,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             provider: "Google",
           },
         });
-      } catch (error) {}
+      } catch (error) {
+        console.error("Error creating user:", error);
+      }
       return true;
     },
     async session({ session }) {
