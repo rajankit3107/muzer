@@ -4,17 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 const youtubesearchapi = require("youtube-search-api");
 
+// Regex from your original code
 var yt_regex =
   /^(?:(?:https?:)?\/\/)?(?:www\.)?(?:m\.)?(?:youtu(?:be)?\.com\/(?:v\/|embed\/|watch(?:\/|\?v=))|youtu\.be\/)((?:\w|-){11})(?:\S+)?$/;
 
-const StreamSchema = z.object({
-  creatorId: z.string(),
-  url: z.string(),
-});
-
 export async function POST(req: NextRequest) {
   try {
-    // Get authenticated user
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -28,18 +23,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("Authenticated user ID:", session.user.id);
-
-    // verify user exists in database
-    if (!session.user.email) {
-      return NextResponse.json(
-        { message: `unauthenticated` },
-        { status: 401 }
-      );
-    }
     const existingUser = await prisma.user.findUnique({
       where: {
-        email: session.user.email,
+        email: session.user?.email || "", // Handle potential null email
       },
     });
 
@@ -51,12 +37,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    console.log("Request body:", body);
 
-    // Validate URL only, we'll use the authenticated user's ID
     const validatedData = z
       .object({
-        url: z.string().url("Invalid URL format"), // Add URL validation here
+        url: z.string().url("Invalid URL format"),
       })
       .safeParse(body);
 
@@ -72,7 +56,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isYtUrl = validatedData.data.url.match(yt_regex);
+    const urlString = validatedData.data.url;
+    const isYtUrl = urlString.match(yt_regex);
 
     if (!isYtUrl) {
       return NextResponse.json(
@@ -85,37 +70,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Extract YouTube video ID from URL
     let extractedId: string;
-    console.log("Extracting ID from URL:", validatedData.data.url);
-
     try {
-      const url = new URL(validatedData.data.url);
-      if (url.hostname === "youtu.be") {
-        extractedId = url.pathname.slice(1);
+      const urlObj = new URL(urlString);
+      if (urlObj.hostname.includes("youtu.be")) {
+        extractedId = urlObj.pathname.slice(1);
       } else if (
-        url.hostname === "www.youtube.com" ||
-        url.hostname === "youtube.com" ||
-        url.hostname === "m.youtube.com"
+        urlObj.hostname.includes("youtube.com")
       ) {
-        if (url.pathname.includes("/watch")) {
-          extractedId = url.searchParams.get("v") || "";
-        } else if (url.pathname.includes("/embed/")) {
-          extractedId = url.pathname.split("/embed/")[1]?.split(/[?&#]/)[0];
-        } else if (url.pathname.includes("/v/")) {
-          extractedId = url.pathname.split("/v/")[1]?.split(/[?&#]/)[0];
+        if (urlObj.pathname.includes("/watch")) {
+          extractedId = urlObj.searchParams.get("v") || "";
+        } else if (urlObj.pathname.includes("/embed/")) {
+          extractedId = urlObj.pathname.split("/embed/")[1]?.split(/[?&#]/)[0];
+        } else if (urlObj.pathname.includes("/v/")) {
+          extractedId = urlObj.pathname.split("/v/")[1]?.split(/[?&#]/)[0];
         } else {
-          // Fallback to regex for other youtube.com patterns
-          const match = validatedData.data.url.match(yt_regex);
+          const match = urlString.match(yt_regex);
           extractedId = match ? match[1] : "";
         }
       } else {
-        // Fallback to regex if none of the above specific cases match
-        const match = validatedData.data.url.match(yt_regex);
+        const match = urlString.match(yt_regex);
         extractedId = match ? match[1] : "";
       }
-
-      console.log("Extracted ID:", extractedId);
 
       if (!extractedId) {
         throw new Error("Could not extract video ID");
@@ -135,16 +111,16 @@ export async function POST(req: NextRequest) {
     let videoDetails;
     try {
       videoDetails = await youtubesearchapi.GetVideoDetails(extractedId);
-      console.log("YouTube Video Details:", videoDetails);
+      console.log("YouTube API Raw Video Details Response:", JSON.stringify(videoDetails, null, 2));
 
       if (!videoDetails || !videoDetails.title) {
         console.warn("YouTube API returned no title or malformed response.");
         return NextResponse.json(
           {
-            message: "Could not retrieve video details from YouTube API.",
+            message: "Could not retrieve video details from YouTube API (missing title).",
           },
           {
-            status: 404, // Not Found, or 424 Failed Dependency
+            status: 404,
           }
         );
       }
@@ -156,43 +132,48 @@ export async function POST(req: NextRequest) {
           error: apiError instanceof Error ? apiError.message : String(apiError),
         },
         {
-          status: 502, // Bad Gateway or 500
+          status: 502,
         }
       );
     }
 
-    // Now, safely access 'thumbnail'
-    let thumbnails = videoDetails.thumbnail?.thumbnails || [];
+    let smallImg = "https://t4.ftcdn.net/jpg/01/77/43/63/360_F_177436300_PN50VtrZbrdxSAMKIgbbOIU90ZSCn8y3.jpg"; // Default fallback
+    let bigImg = "https://t4.ftcdn.net/jpg/01/77/43/63/360_F_177436300_PN50VtrZbrdxSAMKIgbbOIU90ZSCn8y3.jpg"; // Default fallback
 
-    // Ensure thumbnails is an array before sorting
-    if (!Array.isArray(thumbnails) || thumbnails.length === 0) {
-      console.warn("No thumbnails found for the video. Using default images.");
-      // Provide default fallbacks if no thumbnails are available
-      thumbnails = [
-        {
-          url: "https://t4.ftcdn.net/jpg/01/77/43/63/360_F_177436300_PN50VtrZbrdxSAMKIgbbOIU90ZSCn8y3.jpg",
-          width: 360,
-          height: 202,
-        },
-      ];
+    // Try to get thumbnails from the API response
+    const apiThumbnails = videoDetails.thumbnail?.thumbnails;
+
+    if (Array.isArray(apiThumbnails) && apiThumbnails.length > 0) {
+      // Sort thumbnails by width in ascending order
+      apiThumbnails.sort((a: { width: number }, b: { width: number }) => a.width - b.width);
+
+      // Take the largest for bigImg
+      bigImg = apiThumbnails[apiThumbnails.length - 1].url;
+
+      // Take the second largest for smallImg, or largest if only one
+      smallImg = apiThumbnails.length > 1
+        ? apiThumbnails[apiThumbnails.length - 2].url
+        : bigImg; // Use the largest if there's only one thumbnail
     } else {
-      thumbnails.sort((a: { width: number }, b: { width: number }) =>
-        a.width < b.width ? -1 : 1
-      );
+      // If API did not return thumbnails, construct generic YouTube thumbnail URLs
+      console.warn("YouTube API did not return specific thumbnail array. Constructing generic URLs.");
+      smallImg = `https://img.youtube.com/vi/${extractedId}/mqdefault.jpg`; // Medium quality default
+      bigImg = `https://img.youtube.com/vi/${extractedId}/maxresdefault.jpg`; // Max resolution default (might not exist for all videos)
+      // Fallback for maxresdefault if it doesn't exist
+      // Note: You might need to make an actual HEAD request to check if maxresdefault.jpg exists
+      // For simplicity here, we'll just use it and assume browsers will handle a broken image.
+      // A more robust solution would involve trying hqdefault.jpg, sddefault.jpg, etc.
     }
 
-    // Create stream in database
+
     const streamData = {
-      userId: existingUser.id, // Use DB user id to satisfy FK
-      url: validatedData.data.url,
+      userId: existingUser.id,
+      url: urlString,
       type: "Youtube" as const,
       extractedId: extractedId,
-      title: videoDetails.title ?? "Can't find Video Title",
-      smallImg:
-        thumbnails.length > 1
-          ? thumbnails[thumbnails.length - 2].url // Second largest
-          : thumbnails[0].url, // Fallback to largest if only one
-      bigImg: thumbnails[thumbnails.length - 1].url, // Largest
+      title: videoDetails.title ?? "Can't find Video",
+      smallImg: smallImg,
+      bigImg: bigImg,
     };
 
     console.log("Stream data to be created:", streamData);
@@ -224,6 +205,8 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+
 
 export async function GET(req: NextRequest) {
   const creatorId = req.nextUrl.searchParams.get("creatorId");
