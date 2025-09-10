@@ -41,9 +41,12 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    streams: streams.map(({ _count, ...rest }) => ({
-      ...rest,
-      upvotes: _count.upvotes,
-    })),
+    streams: streams.map((stream) => {
+      const { _count, ...rest } = stream;
+      return {
+        ...rest,
+        upvotes: _count.upvotes,
+      };
+    }),
   });
 }
