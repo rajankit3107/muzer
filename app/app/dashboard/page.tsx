@@ -309,16 +309,6 @@ export default function MusicVotingApp() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleShare}
-              className="border-slate-700 hover:bg-slate-800 bg-transparent"
-            >
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </Button>
-
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={session?.user?.image || "/creator-profile.png"} />
@@ -331,11 +321,20 @@ export default function MusicVotingApp() {
                 <p className="text-slate-400 text-xs">Creator</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="border-slate-700 hover:bg-slate-800 bg-transparent" asChild>
+            <Button variant="outline" size="sm" className="border-slate-700 hover:bg-slate-800 bg-transparent cursor-pointer" asChild>
               <a href="/api/auth/signout">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </a>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShare}
+              className="border-slate-700 hover:bg-slate-800 bg-transparent cursor-pointer"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
             </Button>
           </div>
         </header>
