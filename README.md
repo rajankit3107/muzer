@@ -27,7 +27,7 @@ A modern music streaming platform built with Next.js that allows users to share 
 
 - Node.js 18+
 - PostgreSQL database
-- Google OAuth credentials
+- Google OAuth credential
 
 ### Installation
 
